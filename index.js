@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors')
+const jwt = require('jsonwebtoken')
 require('dotenv').config();
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 app = express();
 const port = process.env.PORT || 5000;
 
@@ -36,6 +37,35 @@ async function run() {
         const bookingsCollection = client.db("ExpressCargo").collection("bookings")
 
 
+
+
+        // ______________OUR OWN MEDDLERS_______________
+        const verifyToken = (req, res, next) =>{
+            if(!req.headers.authorization){
+                return res.status(401).send({massage: 'unauthorized access'})
+            }
+            const token = req.headers.authorization.split(' ')[1]
+            jwt.verify(token, process.env.API_SECRET_KEY, (error, decoded) =>{
+                if(error){
+                    return res.status(401).send({ massage: 'unauthorized access' })
+                }
+                req.decoded = decoded;
+                next()
+            })
+        }
+
+
+
+
+
+
+         // _____________JWT API_______________
+         app.post('/jwt', async (req, res) => {
+            const user = req.body;
+            const token = jwt.sign(user, process.env.API_SECRET_KEY, { expiresIn: '1h' })
+            res.send({token})
+        })
+
         // check isAdmin 
 
         app.get('/users/admin/:email', async (req, res) => {
@@ -62,7 +92,16 @@ async function run() {
             res.send({ isDeliverer })
         })
 
+       
 
+        // ____________USER RELATED API_____________
+
+
+        app.get('/users', async (req, res) =>{
+            const result = await usersCollection.find().toArray();
+            res.send(result)
+        })
+        
 
         app.post('/users', async (req, res) => {
             const userData = req.body;
@@ -76,11 +115,65 @@ async function run() {
         })
 
 
+        // _____________ BOOKINGS API _______________
         // save product in bookings collection 
+
+        app.get('/bookings', verifyToken, async (req, res) => {
+            const email = req.query.email; 
+            if(req.decoded.email !== email){
+                return res.status(403).send({massage: "Forbidden Access"})
+            }
+            const query = { email: email }
+            const result = await bookingsCollection.find(query).toArray()
+            res.send(result)
+        })
+
+        app.get('/updateParcel/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const result = await bookingsCollection.findOne(query)
+            res.send(result)
+        })
+
 
         app.post('/bookings', async (req, res) => {
             const product = req.body
             const result = await bookingsCollection.insertOne(product)
+            res.send(result)
+        })
+
+        app.put('/bookings/:id', async (req, res) => {
+            const parcel = req.body;
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const updateDoc = {
+                $set: {
+                    senderName: parcel.senderName,
+                    email: parcel.email,
+                    senderPhone: parcel.senderPhone,
+                    parcelType: parcel.parcelType,
+                    weight: parcel.weight,
+                    price: parcel.price,
+                    receiverName: parcel.receiverName,
+                    receiverPhone: parcel.receiverPhone,
+                    deliveryAddress: parcel.deliveryAddress,
+                    reqDeliveryDate: parcel.reqDeliveryDate,
+                    bookingDate: parcel.bookingDate,
+                    latitude: parcel.latitude,
+                    longitude: parcel.longitude,
+                    status: parcel.status
+                }
+            }
+
+            const result = await bookingsCollection.updateOne(filter, updateDoc)
+            res.send(result)
+        })
+
+
+        app.delete('/bookings/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const result = await bookingsCollection.deleteOne(query)
             res.send(result)
         })
 
