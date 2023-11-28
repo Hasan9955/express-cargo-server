@@ -55,6 +55,18 @@ async function run() {
         }
 
 
+        const verifyAdmin = async (req, res, next) =>{
+            const email = req.decoded.email; 
+            const query = {email: email}
+            const user = await usersCollection.findOne(query) 
+            const isAdmin = user?.role === 'admin'   
+            if(!isAdmin){
+                return res.status(401).send({massage: 'unauthorized access'})
+            }
+            next()
+        }
+
+
 
 
 
@@ -97,10 +109,7 @@ async function run() {
         // ____________USER RELATED API_____________
 
 
-        app.get('/users', async (req, res) =>{
-            const result = await usersCollection.find().toArray();
-            res.send(result)
-        })
+        
         
 
         app.post('/users', async (req, res) => {
@@ -115,6 +124,46 @@ async function run() {
         })
 
 
+        // __________________ADMIN API________________
+
+
+        app.get('/users', verifyToken, verifyAdmin, async (req, res) =>{
+            const result = await usersCollection.find().toArray();
+            res.send(result)
+        })
+
+        app.get('/users/isDeliverer', verifyToken, verifyAdmin, async (req, res) =>{
+            const query = {role: 'deliverer'}
+            const result = await usersCollection.find(query).toArray();
+            res.send(result)
+
+        })
+
+
+        // only for admin for change a user role
+        app.put('/users/:id', verifyToken, verifyAdmin, async(req, res) =>{
+            const id = req.params.id;
+            const user = req.body;
+            const filter = {_id: new ObjectId(id)}
+            const upDoc = {
+                $set: {
+                    role: user.role
+                }
+            }
+            const result = await usersCollection.updateOne(filter, upDoc)
+            res.send(result)
+        })
+
+
+        // only for admin to delete a user from database
+        app.delete('/users/:id', verifyToken, verifyAdmin, async(req, res) =>{
+            const id = req.params.id;
+            const query = {_id: new ObjectId(id)}
+            const result = await usersCollection.deleteOne(query)
+            res.send(result)
+        })
+
+
         // _____________ BOOKINGS API _______________
         // save product in bookings collection 
 
@@ -123,6 +172,17 @@ async function run() {
             if(req.decoded.email !== email){
                 return res.status(403).send({massage: "Forbidden Access"})
             }
+
+            const query = { email: email }
+            const result = await bookingsCollection.find(query).toArray()
+            res.send(result)
+        })
+
+
+        // get total bookings by specific users only for admin
+
+        app.get('/totalBookings', verifyToken, async (req, res) => {
+            const email = req.query.email; 
             const query = { email: email }
             const result = await bookingsCollection.find(query).toArray()
             res.send(result)
