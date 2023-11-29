@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors')
 const jwt = require('jsonwebtoken')
+const stripe = require('stripe')('sk_test_51OFgDuHm78kdpiUDxlb1nYHDkuT4P2BYJnQNNLmT1n1r31cKAE7Km9D57FGiVTEWPieAk44cbbiIYCjkmKf5H3o200KmPJu3N8')
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 app = express();
@@ -35,6 +36,42 @@ async function run() {
 
         const usersCollection = client.db("ExpressCargo").collection("users")
         const bookingsCollection = client.db("ExpressCargo").collection("bookings")
+
+
+
+        // ________________PAYMENT API________________
+
+        app.post('/create-payment-intent', async (req, res) => {
+            const { price } = req.body;
+            const amount = parseInt(price * 100);
+            console.log(amount)
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: 'usd',
+                payment_method_types: ['card']
+            })
+
+            res.send({
+                clientSecret: paymentIntent.client_secret
+            })
+        })
+
+
+        app.put('/bookings/update/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const payDetails = req.body;
+            const updateDoc = {
+                $set: {
+                    status: 'processing',
+                    transactionId: payDetails.transactionId,
+                    paymentStatus: payDetails.paymentStatus
+                }
+            }
+            const result = await bookingsCollection.updateOne(filter, updateDoc)
+            res.send(result)
+        })
+
 
 
 
@@ -185,12 +222,23 @@ async function run() {
 
         app.get('/bookings', verifyToken, async (req, res) => {
             const email = req.query.email;
+            const status = req.query.status;
             if (req.decoded.email !== email) {
                 return res.status(403).send({ massage: "Forbidden Access" })
             }
+            
 
+            if(status){
+                const twoQuery = {
+                    email: email,
+                    status: status
+                }
+                const result = await bookingsCollection.find(twoQuery).sort({ _id: -1 }).toArray()
+                return res.send(result)
+            }
+            
             const query = { email: email }
-            const result = await bookingsCollection.find(query).toArray()
+            const result = await bookingsCollection.find(query).sort({ _id: -1 }).toArray()
             res.send(result)
         })
 
@@ -262,9 +310,8 @@ async function run() {
         })
 
         app.get('/allBookings', verifyToken, verifyAdmin, async (req, res) => {
-            // const query = {status: {$ne: "pending"}}
-            const query = { status: { $ne: "to do: uncomment" } }
-            const result = await bookingsCollection.find(query).toArray();
+            // const query = {status: {$ne: "pending"}} 
+            const result = await bookingsCollection.find().sort({ _id: -1 }).toArray();
             res.send(result)
         })
 
@@ -275,7 +322,7 @@ async function run() {
             const filter = { _id: new ObjectId(id) }
             const updateDoc = {
                 $set: {
-                    status: 'On The Way',
+                    status: 'on the way',
                     delivererId: deliverer.delivererId,
                     delivererEmail: deliverer.delivererEmail
                 }
