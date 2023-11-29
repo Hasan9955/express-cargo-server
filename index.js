@@ -40,13 +40,13 @@ async function run() {
 
 
         // ______________OUR OWN MEDDLERS_______________
-        const verifyToken = (req, res, next) =>{
-            if(!req.headers.authorization){
-                return res.status(401).send({massage: 'unauthorized access'})
+        const verifyToken = (req, res, next) => {
+            if (!req.headers.authorization) {
+                return res.status(401).send({ massage: 'unauthorized access' })
             }
             const token = req.headers.authorization.split(' ')[1]
-            jwt.verify(token, process.env.API_SECRET_KEY, (error, decoded) =>{
-                if(error){
+            jwt.verify(token, process.env.API_SECRET_KEY, (error, decoded) => {
+                if (error) {
                     return res.status(401).send({ massage: 'unauthorized access' })
                 }
                 req.decoded = decoded;
@@ -55,13 +55,13 @@ async function run() {
         }
 
 
-        const verifyAdmin = async (req, res, next) =>{
-            const email = req.decoded.email; 
-            const query = {email: email}
-            const user = await usersCollection.findOne(query) 
-            const isAdmin = user?.role === 'admin'   
-            if(!isAdmin){
-                return res.status(401).send({massage: 'unauthorized access'})
+        const verifyAdmin = async (req, res, next) => {
+            const email = req.decoded.email;
+            const query = { email: email }
+            const user = await usersCollection.findOne(query)
+            const isAdmin = user?.role === 'admin'
+            if (!isAdmin) {
+                return res.status(401).send({ massage: 'unauthorized access' })
             }
             next()
         }
@@ -71,11 +71,11 @@ async function run() {
 
 
 
-         // _____________JWT API_______________
-         app.post('/jwt', async (req, res) => {
+        // _____________JWT API_______________
+        app.post('/jwt', async (req, res) => {
             const user = req.body;
             const token = jwt.sign(user, process.env.API_SECRET_KEY, { expiresIn: '1h' })
-            res.send({token})
+            res.send({ token })
         })
 
         // check isAdmin 
@@ -104,13 +104,13 @@ async function run() {
             res.send({ isDeliverer })
         })
 
-       
+
 
         // ____________USER RELATED API_____________
 
 
-        
-        
+
+
 
         app.post('/users', async (req, res) => {
             const userData = req.body;
@@ -127,13 +127,14 @@ async function run() {
         // __________________ADMIN API________________
 
 
-        app.get('/users', verifyToken, verifyAdmin, async (req, res) =>{
+        app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
             const result = await usersCollection.find().toArray();
             res.send(result)
         })
 
-        app.get('/users/isDeliverer', verifyToken, verifyAdmin, async (req, res) =>{
-            const query = {role: 'deliverer'}
+        // get all deliverers
+        app.get('/users/isDeliverer', verifyToken, verifyAdmin, async (req, res) => {
+            const query = { role: 'deliverer' }
             const result = await usersCollection.find(query).toArray();
             res.send(result)
 
@@ -141,10 +142,10 @@ async function run() {
 
 
         // only for admin for change a user role
-        app.put('/users/:id', verifyToken, verifyAdmin, async(req, res) =>{
+        app.put('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id;
             const user = req.body;
-            const filter = {_id: new ObjectId(id)}
+            const filter = { _id: new ObjectId(id) }
             const upDoc = {
                 $set: {
                     role: user.role
@@ -154,11 +155,26 @@ async function run() {
             res.send(result)
         })
 
+        // remove role form deliverers
+        app.put('/users/deliverer/:id', async (req, res) => {
+            const id = req.params.id;
+
+            const query = { _id: new ObjectId(id) }
+
+            const updateDoc = {
+                $set: {
+                    role: ''
+                }
+            }
+            const result = await usersCollection.updateOne(query, updateDoc)
+            res.send(result)
+        })
+
 
         // only for admin to delete a user from database
-        app.delete('/users/:id', verifyToken, verifyAdmin, async(req, res) =>{
+        app.delete('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id;
-            const query = {_id: new ObjectId(id)}
+            const query = { _id: new ObjectId(id) }
             const result = await usersCollection.deleteOne(query)
             res.send(result)
         })
@@ -168,9 +184,9 @@ async function run() {
         // save product in bookings collection 
 
         app.get('/bookings', verifyToken, async (req, res) => {
-            const email = req.query.email; 
-            if(req.decoded.email !== email){
-                return res.status(403).send({massage: "Forbidden Access"})
+            const email = req.query.email;
+            if (req.decoded.email !== email) {
+                return res.status(403).send({ massage: "Forbidden Access" })
             }
 
             const query = { email: email }
@@ -179,14 +195,7 @@ async function run() {
         })
 
 
-        // get total bookings by specific users only for admin
 
-        app.get('/totalBookings', verifyToken, async (req, res) => {
-            const email = req.query.email; 
-            const query = { email: email }
-            const result = await bookingsCollection.find(query).toArray()
-            res.send(result)
-        })
 
         app.get('/updateParcel/:id', async (req, res) => {
             const id = req.params.id;
@@ -234,6 +243,54 @@ async function run() {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) }
             const result = await bookingsCollection.deleteOne(query)
+            res.send(result)
+        })
+
+
+
+
+
+        // ___________ADMIN API______________
+
+        // get total bookings by specific users only for admin
+
+        app.get('/totalBookings', verifyToken, verifyAdmin, async (req, res) => {
+            const email = req.query.email;
+            const query = { email: email }
+            const result = await bookingsCollection.find(query).toArray()
+            res.send(result)
+        })
+
+        app.get('/allBookings', verifyToken, verifyAdmin, async (req, res) => {
+            // const query = {status: {$ne: "pending"}}
+            const query = { status: { $ne: "to do: uncomment" } }
+            const result = await bookingsCollection.find(query).toArray();
+            res.send(result)
+        })
+
+        // add a deliverer 
+        app.put('/appoint/:id', verifyToken, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const deliverer = req.body;
+            const filter = { _id: new ObjectId(id) }
+            const updateDoc = {
+                $set: {
+                    status: 'On The Way',
+                    delivererId: deliverer.delivererId,
+                    delivererEmail: deliverer.delivererEmail
+                }
+            }
+            const result = await bookingsCollection.updateOne(filter, updateDoc)
+            res.send(result)
+        })
+
+
+
+        // get data for deliverer 
+        app.get('/deliveryList/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { delivererEmail: email }
+            const result = await bookingsCollection.find(query).toArray()
             res.send(result)
         })
 
