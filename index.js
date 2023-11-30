@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors')
 const jwt = require('jsonwebtoken')
 require('dotenv').config();
-const stripe = require('stripe')(process.env.STRIP_KEY) 
+const stripe = require('stripe')(process.env.STRIP_KEY)
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 app = express();
 const port = process.env.PORT || 5000;
@@ -143,6 +143,17 @@ async function run() {
         })
 
 
+        // ___________count for home___________
+        app.get('/count', async (req, res) => {
+            const bookingCount = await bookingsCollection.estimatedDocumentCount();
+            const userCount = await usersCollection.estimatedDocumentCount();
+            const query = { status: 'delivered' }
+            const result = await bookingsCollection.find(query).toArray();
+            const deliveredCount = result.length
+            res.send({ bookingCount, userCount, deliveredCount })
+        })
+
+
 
         // ____________USER RELATED API_____________
         app.post('/users', async (req, res) => {
@@ -159,9 +170,18 @@ async function run() {
 
         // __________________ADMIN API________________
 
+        app.get('/countUsers', async (req, res) => {
+            const count = await usersCollection.estimatedDocumentCount();
+            res.send({ count });
+        })
 
         app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
-            const result = await usersCollection.find().toArray();
+            const page = parseInt(req.query.page)
+            const size = parseInt(req.query.size)
+            const result = await usersCollection.find()
+                .skip(page * size)
+                .limit(size)
+                .toArray();
             res.send(result)
         })
 
@@ -306,7 +326,7 @@ async function run() {
         })
 
         app.get('/allBookings', verifyToken, verifyAdmin, async (req, res) => {
-            const query = {status: {$ne: "pending"}} 
+            const query = { status: { $ne: "pending" } }
             const result = await bookingsCollection.find(query).sort({ _id: -1 }).toArray();
             res.send(result)
         })
@@ -348,7 +368,7 @@ async function run() {
         app.get('/deliveryList/:email', async (req, res) => {
             const email = req.params.email;
             const query = { delivererEmail: email }
-            const result = await bookingsCollection.find(query).toArray()
+            const result = await bookingsCollection.find(query).sort({ _id: -1 }).toArray()
             res.send(result)
         })
 
@@ -356,9 +376,9 @@ async function run() {
 
 
         // ________________REVIEWS API__________________
-        app.get('/reviews/:email', async (req, res) =>{
+        app.get('/reviews/:email', async (req, res) => {
             const email = req.params.email;
-            const query = {delivererEmail: email }
+            const query = { delivererEmail: email }
             const result = await reviewsCollection.find(query).toArray();
             res.send(result)
         })
