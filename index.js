@@ -195,8 +195,7 @@ async function run() {
                     }
                 }
             ];
-            const result = await reviewsCollection.aggregate(pipeline).toArray();
-            console.log(result)
+            const result = await reviewsCollection.aggregate(pipeline).toArray(); 
             res.send(result)
         })
 
