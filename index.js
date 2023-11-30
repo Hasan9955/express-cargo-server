@@ -1,8 +1,8 @@
 const express = require('express');
 const cors = require('cors')
 const jwt = require('jsonwebtoken')
-const stripe = require('stripe')('sk_test_51OFgDuHm78kdpiUDxlb1nYHDkuT4P2BYJnQNNLmT1n1r31cKAE7Km9D57FGiVTEWPieAk44cbbiIYCjkmKf5H3o200KmPJu3N8')
 require('dotenv').config();
+const stripe = require('stripe')(process.env.STRIP_KEY) 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 app = express();
 const port = process.env.PORT || 5000;
@@ -36,6 +36,7 @@ async function run() {
 
         const usersCollection = client.db("ExpressCargo").collection("users")
         const bookingsCollection = client.db("ExpressCargo").collection("bookings")
+        const reviewsCollection = client.db("ExpressCargo").collection("reviews")
 
 
 
@@ -144,11 +145,6 @@ async function run() {
 
 
         // ____________USER RELATED API_____________
-
-
-
-
-
         app.post('/users', async (req, res) => {
             const userData = req.body;
             const query = { email: userData.email }
@@ -226,9 +222,9 @@ async function run() {
             if (req.decoded.email !== email) {
                 return res.status(403).send({ massage: "Forbidden Access" })
             }
-            
 
-            if(status){
+
+            if (status) {
                 const twoQuery = {
                     email: email,
                     status: status
@@ -236,7 +232,7 @@ async function run() {
                 const result = await bookingsCollection.find(twoQuery).sort({ _id: -1 }).toArray()
                 return res.send(result)
             }
-            
+
             const query = { email: email }
             const result = await bookingsCollection.find(query).sort({ _id: -1 }).toArray()
             res.send(result)
@@ -310,8 +306,8 @@ async function run() {
         })
 
         app.get('/allBookings', verifyToken, verifyAdmin, async (req, res) => {
-            // const query = {status: {$ne: "pending"}} 
-            const result = await bookingsCollection.find().sort({ _id: -1 }).toArray();
+            const query = {status: {$ne: "pending"}} 
+            const result = await bookingsCollection.find(query).sort({ _id: -1 }).toArray();
             res.send(result)
         })
 
@@ -332,6 +328,21 @@ async function run() {
         })
 
 
+        // update data by deliverer 
+        app.put('/delivery/:id', verifyToken, async (req, res) => {
+            const id = req.params.id;
+            const body = req.body;
+            const filter = { _id: new ObjectId(id) }
+            const updateDoc = {
+                $set: {
+                    status: body.status,
+                }
+            }
+            const result = await bookingsCollection.updateOne(filter, updateDoc)
+            res.send(result)
+        })
+
+
 
         // get data for deliverer 
         app.get('/deliveryList/:email', async (req, res) => {
@@ -342,6 +353,35 @@ async function run() {
         })
 
 
+
+
+        // ________________REVIEWS API__________________
+        app.get('/reviews/:email', async (req, res) =>{
+            const email = req.params.email;
+            const query = {delivererEmail: email }
+            const result = await reviewsCollection.find(query).toArray();
+            res.send(result)
+        })
+
+        app.post('/reviews', async (req, res) => {
+            const data = req.body;
+            const result = await reviewsCollection.insertOne(data);
+            res.send(result)
+        })
+
+
+
+        app.put('/update/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const updateDoc = {
+                $set: {
+                    reviewStatus: 'reviewed'
+                }
+            }
+            const result = await bookingsCollection.updateOne(query, updateDoc)
+            res.send(result)
+        })
 
 
 
