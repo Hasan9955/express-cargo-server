@@ -37,6 +37,7 @@ async function run() {
         const usersCollection = client.db("ExpressCargo").collection("users")
         const bookingsCollection = client.db("ExpressCargo").collection("bookings")
         const reviewsCollection = client.db("ExpressCargo").collection("reviews")
+        const slidersCollection = client.db("ExpressCargo").collection("sliders")
 
 
 
@@ -153,6 +154,58 @@ async function run() {
             res.send({ bookingCount, userCount, deliveredCount })
         })
 
+        // _________TOP DELIVERER_________
+        app.get('/topDeliverer', async (req, res) =>{
+            const pipeline = [
+                {
+                    $group: {
+                        _id: "$delivererEmail",
+                        averageRating: { $avg: "$rating" }
+                    }
+                },
+                {
+                    $sort: { averageRating: -1 }
+                },
+                {
+                    $limit: 5
+                },
+                {
+                    $lookup: {
+                        from: "usersCollection",
+                        localField: "_id",
+                        foreignField: "email",
+                        as: "delivererInfo"
+                    }
+                },
+                {
+                    $unwind: "$delivererInfo"
+                },
+                {
+                    $sort: {"averageRating": -1 }
+                },
+                {
+                    $limit: 5
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        email: "$_id",
+                        averageRating: 1,
+                        delivererInfo: 1
+                    }
+                }
+            ];
+            const result = await reviewsCollection.aggregate(pipeline).toArray();
+            console.log(result)
+            res.send(result)
+        })
+
+
+        // get all sliders
+        app.get('/sliders', async(req, res) =>{
+            const result = await slidersCollection.find().toArray();
+            res.send(result)
+        })
 
 
         // ____________USER RELATED API_____________
@@ -326,8 +379,9 @@ async function run() {
         })
 
         app.get('/allBookings', verifyToken, verifyAdmin, async (req, res) => {
-            const query = { status: { $ne: "pending" } }
-            const result = await bookingsCollection.find(query).sort({ _id: -1 }).toArray();
+            // const query = { status: { $ne: "pending" } } 
+            // TODO UNCOMMENT
+            const result = await bookingsCollection.find().sort({ _id: -1 }).toArray();
             res.send(result)
         })
 
